@@ -1,0 +1,129 @@
+@app.post("/scan")
+async def scan_url(req: ScanRequest):
+    raw_url = req.url.strip()
+    scan_mode = req.scan_mode  # "static", "dynamic", "hybrid"
+
+    if not raw_url.startswith(("http://", "https://", "data:")):
+        raw_url = "https://" + raw_url
+
+    try:
+        parsed = urllib.parse.urlparse(raw_url)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Cannot extract hostname")
+
+    logger.info(f"[SCAN:{scan_mode.upper()}] {raw_url}")
+
+    async with aiohttp.ClientSession(
+        connector=aiohttp.TCPConnector(ssl=False),
+        headers={"User-Agent": "PhishGuard/3.0 Security Scanner"},
+    ) as session:
+        # Always run static checks
+        tasks = {
+            "dns":       asyncio.create_task(dns_lookup(hostname)),
+            "redirects": asyncio.create_task(check_redirects(raw_url, session)),
+            "openphish": asyncio.create_task(check_openphish(raw_url, session)),
+            "urlhaus":   asyncio.create_task(check_urlhaus(raw_url, session)),
+            "gsb":       asyncio.create_task(check_google_safe_browsing(raw_url, session)),
+        }
+
+        # Dynamic checks
+        if scan_mode in ("dynamic", "hybrid"):
+            tasks["urlscan"] = asyncio.create_task(check_urlscan(raw_url, session))
+            tasks["dynamic"] = asyncio.create_task(dynamic_scan(raw_url))
+            tasks["dynamic"] = asyncio.create_task(
+    asyncio.wait_for(dynamic_scan(raw_url), timeout=20)
+)
+
+        # Thread pool for sync operations
+        loop = asyncio.get_event_loop()
+        whois_task = loop.run_in_executor(None, whois_lookup, hostname)
+        ssl_task   = loop.run_in_executor(None, ssl_lookup, hostname)
+
+        # Playwright (if dynamic or hybrid)
+        playwright_task = None
+        if scan_mode in ("dynamic", "hybrid") and PLAYWRIGHT_AVAILABLE:
+            playwright_task = asyncio.create_task(dynamic_scan(raw_url))
+        
+
+        # Gather static results
+        results = await asyncio.gather(*tasks.values(), whois_task, ssl_task)
+        keys = list(tasks.keys()) + ["whois", "ssl"]
+        r = dict(zip(keys, results))
+
+        dynamic_data = None
+        if playwright_task:
+            dynamic_data = await playwright_task
+        elif scan_mode in ("dynamic", "hybrid"):
+            dynamic_data = await dynamic_scan(raw_url)
+
+    blacklists = [r["openphish"], r["urlhaus"], r["gsb"]]
+    if "urlscan" in r:
+        blacklists.append(r["urlscan"])
+
+    syntax_data = analyse_syntax(raw_url, parsed)
+
+    risk_score, risk_factors = compute_risk_score(
+        r["dns"], r["whois"], r["ssl"], syntax_data, blacklists, r["redirects"], dynamic_data
+    )
+    verdict = verdict_from_score(risk_score)
+    threats = build_threat_breakdown(
+        r["dns"], r["whois"], r["ssl"], syntax_data, blacklists, r["redirects"], dynamic_data
+    )
+
+    age_days = r["whois"].get("age_days")
+    if age_days is None:
+        age_str = "Unknown"
+    elif age_days < 30:
+        age_str = f"Newly registered ({age_days} days)"
+    elif age_days < 365:
+        age_str = f"{age_days // 30} month(s)"
+    else:
+        age_str = f"{age_days // 365} year(s)"
+
+    labels = hostname.split(".")
+    subdomain = ".".join(labels[:-2]) if len(labels) > 2 else ""
+
+    return {
+        "url": raw_url,
+        "scanMode": scan_mode,
+        "riskScore": risk_score,
+        "verdict": verdict,
+        "riskFactors": risk_factors,
+        "ssl": r["ssl"],
+        "dns": r["dns"],
+        "dynamic": dynamic_data,
+        "whois": {**r["whois"], "age_string": age_str},
+        "syntax": syntax_data,
+        "blacklists": blacklists,
+        "platformBlocks": [
+            {"platform": "Google Safe Browsing", "blocked": r["gsb"].get("listed", False), "detail": r["gsb"].get("detail", "")},
+            {"platform": "URLhaus / Abuse.ch",   "blocked": r["urlhaus"].get("listed", False), "detail": r["urlhaus"].get("detail", "")},
+            {"platform": "OpenPhish Feed",        "blocked": r["openphish"].get("listed", False), "detail": r["openphish"].get("detail", "")},
+            {"platform": "Urlscan.io",            "blocked": r.get("urlscan", {}).get("listed", False), "detail": r.get("urlscan", {}).get("detail", "N/A")},
+        ],
+        "threats": threats,
+        "redirects": r["redirects"],
+        "dynamic": dynamic_data,
+        "urlscan": {
+            "screenshot": r.get("urlscan", {}).get("screenshot_url"),
+            "report": r.get("urlscan", {}).get("scan_url"),
+            "score": r.get("urlscan", {}).get("score"),
+            "tags": r.get("urlscan", {}).get("tags", []),
+        },
+        "urlInfo": {
+            "protocol": parsed.scheme,
+            "hostname": hostname,
+            "tld": labels[-1] if labels else "",
+            "urlLength": len(raw_url),
+            "subdomain": subdomain or "none",
+            "pathDepth": len([p for p in parsed.path.split("/") if p]),
+            "hasSpecialChars": bool(re.search(r"[<>{}\\|^`]", raw_url)),
+            "isIpBased": r["dns"].get("is_ip", False),
+            "port": parsed.port,
+        },
+        "scannedAt": datetime.now(timezone.utc).isoformat(),
+    }

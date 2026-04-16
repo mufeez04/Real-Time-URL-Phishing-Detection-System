@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhishGuard v3 — Hybrid Threat Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #07090f;
+  --bg2:     #0d1017;
+  --bg3:     #111520;
+  --surface: #161b28;
+  --border:  rgba(110,140,255,0.12);
+  --border2: rgba(110,140,255,0.22);
+  --blue:    #6e8cff;
+  --blue2:   #4a6ef5;
+  --cyan:    #00e5ff;
+  --green:   #00e5a0;
+  --amber:   #ffb547;
+  --red:     #ff4d6d;
+  --purple:  #b06fff;
+  --text:    #d0d8f0;
+  --text2:   #6a7499;
+  --text3:   #363d57;
+  --mono:    'Space Mono', monospace;
+  --head:    'Syne', sans-serif;
+  --body:    'DM Sans', sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--body);color:var(--text)}
+#scene{width:100%;height:100vh;position:relative;overflow:hidden}
+.page{position:absolute;inset:0;display:flex;flex-direction:column;transition:opacity .8s cubic-bezier(.4,0,.2,1),transform .8s cubic-bezier(.4,0,.2,1),filter .8s ease;overflow:hidden}
+.page.hidden-up{opacity:0;transform:translateY(-50px) scale(.97);filter:blur(6px);pointer-events:none}
+.page.hidden-down{opacity:0;transform:translateY(50px) scale(.97);filter:blur(6px);pointer-events:none}
+.page.active{opacity:1;transform:translateY(0) scale(1);filter:blur(0);pointer-events:all}
+
+/* BG Effects */
+.noise{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");opacity:.4}
+.grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(110,140,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(110,140,255,.04) 1px,transparent 1px);background-size:48px 48px}
+.scan-beam{position:fixed;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.2),transparent);animation:beam 10s linear infinite;z-index:1;pointer-events:none}
+@keyframes beam{0%{top:-1px}100%{top:100vh}}
+
+/* ─── PAGE 1 ─── */
+#page1{overflow-y:auto;z-index:2}
+.p1-wrap{max-width:1080px;margin:0 auto;padding:0 48px 100px;min-height:100vh;display:flex;flex-direction:column}
+
+.nav{display:flex;align-items:center;justify-content:space-between;padding:28px 0 0;margin-bottom:80px}
+.nav-logo{font-family:var(--head);font-size:15px;font-weight:800;letter-spacing:3px;color:var(--blue);text-transform:uppercase}
+.nav-badge{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text3);border:1px solid var(--border);padding:5px 12px;text-transform:uppercase}
+
+.hero{text-align:center;margin-bottom:72px;position:relative}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:10px;margin-bottom:28px;font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--cyan);text-transform:uppercase;border:1px solid rgba(0,229,255,.15);padding:7px 18px;background:rgba(0,229,255,.04)}
+.hero-eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);animation:blink 2s ease infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+.hero-title{font-family:var(--head);font-size:clamp(40px,7vw,88px);font-weight:800;line-height:.95;letter-spacing:-2px;margin-bottom:24px}
+.t-grad{background:linear-gradient(135deg,var(--blue) 0%,var(--cyan) 50%,var(--purple) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.t-white{color:#fff}
+.hero-sub{font-family:var(--mono);font-size:11px;letter-spacing:4px;color:var(--text2);text-transform:uppercase;margin-bottom:20px}
+.hero-desc{font-size:16px;color:var(--text2);max-width:600px;margin:0 auto 48px;line-height:1.75}
+
+/* Mode selector on landing */
+.mode-pills{display:inline-flex;gap:0;border:1px solid var(--border2);margin-bottom:40px}
+.mode-pill{font-family:var(--mono);font-size:10px;letter-spacing:2px;padding:10px 22px;cursor:pointer;text-transform:uppercase;transition:all .25s;border:none;background:transparent;color:var(--text2)}
+.mode-pill.active{background:var(--blue2);color:#fff}
+.mode-pill:not(:last-child){border-right:1px solid var(--border2)}
+
+.cta-row{display:flex;gap:16px;justify-content:center;align-items:center;flex-wrap:wrap}
+.btn-primary{display:inline-flex;align-items:center;gap:10px;background:var(--blue2);border:none;color:#fff;font-family:var(--head);font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 32px;cursor:pointer;transition:all .3s;clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+.btn-primary:hover{background:var(--blue);box-shadow:0 0 30px rgba(110,140,255,.3)}
+.btn-sec{display:inline-flex;align-items:center;gap:8px;background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:var(--mono);font-size:10px;letter-spacing:2px;padding:14px 24px;cursor:pointer;transition:all .3s;text-transform:uppercase}
+.btn-sec:hover{border-color:var(--blue);color:var(--blue)}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin:64px 0;overflow:hidden}
+.stat{background:var(--bg2);padding:28px 20px;text-align:center;transition:background .3s}
+.stat:hover{background:rgba(110,140,255,.04)}
+.stat-v{font-family:var(--head);font-size:30px;font-weight:800;color:var(--blue);display:block;margin-bottom:4px}
+.stat-l{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:2px;text-transform:uppercase}
+
+/* Features */
+.section-label{font-family:var(--mono);font-size:9px;letter-spacing:4px;color:var(--text3);text-transform:uppercase;margin-bottom:8px}
+.section-h{font-family:var(--head);font-size:clamp(20px,3vw,26px);font-weight:700;color:#fff;margin-bottom:32px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);margin-bottom:64px;border:1px solid var(--border)}
+.card{background:var(--bg2);padding:28px;transition:background .3s;position:relative;overflow:hidden}
+.card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--blue),var(--cyan));transform:scaleX(0);transform-origin:left;transition:transform .4s}
+.card:hover{background:rgba(110,140,255,.04)}
+.card:hover::after{transform:scaleX(1)}
+.card-icon{width:38px;height:38px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:17px}
+.card-title{font-family:var(--head);font-size:12px;font-weight:700;color:#fff;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase}
+.card-desc{font-size:13px;color:var(--text2);line-height:1.6}
+.card-badge{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:1px;padding:2px 8px;margin-top:10px;border-radius:2px}
+.badge-static{background:rgba(110,140,255,.1);color:var(--blue);border:1px solid rgba(110,140,255,.2)}
+.badge-dynamic{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.badge-hybrid{background:rgba(176,111,255,.1);color:var(--purple);border:1px solid rgba(176,111,255,.2)}
+
+/* ─── PAGE 2 ─── */
+#page2{overflow-y:auto;z-index:2;background:var(--bg)}
+.p2-wrap{max-width:1260px;margin:0 auto;padding:0 40px 100px}
+
+.p2-nav{display:flex;align-items:center;justify-content:space-between;padding:24px 0;border-bottom:1px solid var(--border);margin-bottom:32px}
+.p2-logo{font-family:var(--head);font-size:14px;font-weight:800;color:var(--blue);letter-spacing:3px}
+.be-status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase}
+.be-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);transition:all .5s}
+.be-dot.online{background:var(--green);box-shadow:0 0 8px var(--green)}
+.be-dot.offline{background:var(--red);box-shadow:0 0 8px var(--red)}
+.be-status.online .be-lbl{color:var(--green)}
+.be-status.offline .be-lbl{color:var(--red)}
+.back-btn{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:var(--mono);font-size:10px;letter-spacing:2px;padding:8px 16px;cursor:pointer;text-transform:uppercase;transition:all .3s}
+.back-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* Input zone */
+.input-zone{background:var(--bg2);border:1px solid var(--border);padding:28px;margin-bottom:20px}
+.input-zone-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.input-label{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--text3);text-transform:uppercase}
+.mode-tabs{display:flex;gap:0;border:1px solid var(--border);overflow:hidden}
+.mode-tab{font-family:var(--mono);font-size:9px;letter-spacing:2px;padding:7px 16px;cursor:pointer;text-transform:uppercase;transition:all .2s;border:none;background:transparent;color:var(--text3)}
+.mode-tab:not(:last-child){border-right:1px solid var(--border)}
+.mode-tab.active-static{background:rgba(110,140,255,.15);color:var(--blue)}
+.mode-tab.active-dynamic{background:rgba(0,229,160,.12);color:var(--green)}
+.mode-tab.active-hybrid{background:rgba(176,111,255,.12);color:var(--purple)}
+.mode-tab:hover{color:var(--text)}
+
+.url-row{display:flex;border:1px solid var(--border2);transition:border-color .3s}
+.url-row:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(110,140,255,.08)}
+.url-pfx{background:rgba(110,140,255,.06);border-right:1px solid var(--border2);padding:0 16px;display:flex;align-items:center;font-family:var(--mono);font-size:11px;color:var(--text3);white-space:nowrap;user-select:none}
+#url-input{flex:1;background:transparent;border:none;outline:none;padding:15px 20px;font-family:var(--mono);font-size:13px;color:var(--text);caret-color:var(--blue);min-width:0}
+#url-input::placeholder{color:var(--text3)}
+.scan-btn{background:var(--blue2);border:none;color:#fff;font-family:var(--head);font-size:11px;font-weight:800;letter-spacing:3px;text-transform:uppercase;padding:0 28px;cursor:pointer;transition:all .3s;clip-path:polygon(0 0,100% 0,100% 100%,6px 100%);position:relative;min-width:100px}
+.scan-btn:hover{background:var(--blue);box-shadow:0 0 20px rgba(110,140,255,.3)}
+.scan-btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-spinner{display:none;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
+.scan-btn.loading .btn-txt{display:none}
+.scan-btn.loading .btn-spinner{display:block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.err-msg{background:rgba(255,77,109,.06);border:1px solid rgba(255,77,109,.2);color:var(--red);font-family:var(--mono);font-size:11px;padding:10px 14px;margin-top:10px;display:none;letter-spacing:1px}
+
+/* Progress */
+.progress-panel{background:var(--bg2);border:1px solid var(--border);padding:24px 28px;display:none;margin-bottom:20px}
+.progress-panel.show{display:block}
+.prog-stages{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.prog-stage{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;color:var(--text3);transition:color .3s}
+.prog-stage.active{color:var(--text)}
+.prog-stage.done{color:var(--green)}
+.prog-stage.fail{color:var(--red)}
+.ps-icon{font-size:13px;width:20px;text-align:center;flex-shrink:0}
+.prog-bar-wrap{height:2px;background:rgba(255,255,255,.05);position:relative;overflow:hidden}
+.prog-bar{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan));transition:width .4s ease}
+.prog-lbl{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:2px;margin-bottom:6px;text-transform:uppercase}
+.mode-indicator{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;letter-spacing:2px;padding:4px 10px;border-radius:2px;margin-bottom:12px;text-transform:uppercase}
+.mi-static{background:rgba(110,140,255,.1);color:var(--blue);border:1px solid rgba(110,140,255,.2)}
+.mi-dynamic{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.mi-hybrid{background:rgba(176,111,255,.1);color:var(--purple);border:1px solid rgba(176,111,255,.2)}
+
+/* Results layout */
+.results{display:none;gap:20px}
+.results.show{display:grid}
+.results-main{min-width:0}
+.results-side{width:300px;flex-shrink:0;display:flex;flex-direction:column;gap:16px}
+
+/* Score + verdict */
+.verdict-banner{padding:24px;margin-bottom:20px;border:1px solid;display:flex;align-items:center;gap:20px;position:relative;overflow:hidden}
+.vb-safe{background:rgba(0,229,160,.06);border-color:rgba(0,229,160,.25)}
+.vb-low{background:rgba(110,140,255,.06);border-color:rgba(110,140,255,.25)}
+.vb-suspicious{background:rgba(255,181,71,.06);border-color:rgba(255,181,71,.25)}
+.vb-high{background:rgba(255,140,0,.08);border-color:rgba(255,140,0,.3)}
+.vb-critical{background:rgba(255,77,109,.08);border-color:rgba(255,77,109,.3)}
+.vb-score{font-family:var(--head);font-size:64px;font-weight:800;line-height:1;flex-shrink:0}
+.vb-info{}
+.vb-verdict{font-family:var(--head);font-size:18px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px}
+.vb-scan-mode{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:12px}
+.vb-meter{width:240px;height:10px;background:rgba(255,255,255,.05);border-radius:10px;overflow:hidden}
+.vb-meter-fill{height:100%;border-radius:10px;transition:width 1s cubic-bezier(.4,0,.2,1)}
+.vb-corner{position:absolute;right:-20px;top:-20px;width:120px;height:120px;border-radius:50%;opacity:.07}
+.c-safe{color:var(--green)}.c-low{color:var(--blue)}.c-suspicious{color:var(--amber)}.c-high{color:#ff8c00}.c-critical{color:var(--red)}
+.m-safe{background:var(--green)}.m-low{background:var(--blue)}.m-suspicious{background:var(--amber)}.m-high{background:#ff8c00}.m-critical{background:var(--red)}
+
+/* Tabs for threat breakdown */
+.tab-row{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{font-family:var(--mono);font-size:10px;letter-spacing:2px;padding:10px 18px;cursor:pointer;text-transform:uppercase;color:var(--text3);border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* Threat rows */
+.threat-section-label{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--text3);text-transform:uppercase;margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.t-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.t-row:last-child{border-bottom:none}
+.t-icon{font-size:13px;flex-shrink:0;width:20px;text-align:center}
+.t-info{flex:1;min-width:0}
+.t-name{font-family:var(--mono);font-size:10px;color:var(--text);letter-spacing:1px;margin-bottom:3px}
+.t-bar-bg{height:2px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden;margin-bottom:3px}
+.t-bar{height:100%;border-radius:2px;transition:width 1s cubic-bezier(.4,0,.2,1);width:0}
+.t-detail{font-size:10px;color:var(--text3);font-family:var(--mono)}
+.t-pct{font-family:var(--mono);font-size:11px;color:var(--text2);flex-shrink:0;min-width:28px;text-align:right}
+.t-status{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:2px;flex-shrink:0;letter-spacing:1px}
+.s-pass{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.s-warn{background:rgba(255,181,71,.1);color:var(--amber);border:1px solid rgba(255,181,71,.2)}
+.s-fail{background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.2)}
+.t-type-badge{font-family:var(--mono);font-size:8px;padding:1px 6px;border-radius:2px;flex-shrink:0}
+.tb-static{background:rgba(110,140,255,.1);color:var(--blue)}
+.tb-dynamic{background:rgba(0,229,160,.1);color:var(--green)}
+
+/* Dynamic section */
+.dynamic-section{background:var(--bg2);border:1px solid var(--border);padding:24px;margin-bottom:20px}
+.dynamic-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.dynamic-title{font-family:var(--head);font-size:11px;font-weight:700;color:#fff;letter-spacing:2px;text-transform:uppercase}
+.dynamic-badge{font-family:var(--mono);font-size:8px;letter-spacing:2px;padding:3px 10px;background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2);text-transform:uppercase}
+
+.screenshot-frame{width:100%;aspect-ratio:16/9;background:var(--bg3);border:1px solid var(--border);overflow:hidden;position:relative;margin-bottom:16px;cursor:pointer}
+.screenshot-frame img{width:100%;height:100%;object-fit:cover;display:none}
+.ss-placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:2px}
+.ss-spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;display:none}
+
+.risk-signals-list{display:flex;flex-direction:column;gap:6px}
+.risk-signal{display:flex;align-items:flex-start;gap:8px;font-family:var(--mono);font-size:10px;color:var(--text2);padding:6px 10px;background:rgba(255,77,109,.05);border:1px solid rgba(255,77,109,.1)}
+.rs-icon{color:var(--red);flex-shrink:0}
+.no-signals{font-family:var(--mono);font-size:10px;color:var(--green);padding:10px;background:rgba(0,229,160,.04);border:1px solid rgba(0,229,160,.1);text-align:center}
+
+.dyn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.dyn-item{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;color:var(--text2);padding:6px 10px;background:var(--bg3);border:1px solid var(--border)}
+.dyn-label{color:var(--text3);min-width:120px}
+.dyn-val{color:var(--text)}
+
+/* Sidebar cards */
+.side-card{background:var(--bg2);border:1px solid var(--border);padding:18px}
+.sc-title{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--text3);text-transform:uppercase;margin-bottom:12px}
+.info-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:11px}
+.ik{color:var(--text3);font-family:var(--mono);font-size:9px;flex-shrink:0}
+.iv{color:var(--text);font-family:var(--mono);font-size:9px;text-align:right;word-break:break-all}
+
+/* Blacklists */
+.bl-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:11px}
+.bl-row:last-child{border-bottom:none}
+.bl-icon{font-size:12px;flex-shrink:0}
+.bl-name{font-family:var(--mono);font-size:10px;color:var(--text);flex:1}
+.bl-badge{font-family:var(--mono);font-size:8px;padding:2px 8px;border-radius:2px;flex-shrink:0}
+.bl-listed{background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.2)}
+.bl-clear{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.bl-type{font-family:var(--mono);font-size:8px;color:var(--text3);flex-shrink:0;padding:1px 6px;background:var(--bg3)}
+
+/* DNS */
+.dns-entry{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03);font-family:var(--mono);font-size:10px}
+.dns-type{background:rgba(110,140,255,.1);color:var(--blue);padding:1px 6px;font-size:8px;flex-shrink:0}
+
+/* SSL */
+.ssl-valid-banner{padding:8px 12px;font-family:var(--mono);font-size:10px;margin-bottom:10px;letter-spacing:1px}
+
+/* Syntax flags */
+.flag-chip{display:inline-block;font-family:var(--mono);font-size:9px;padding:3px 10px;background:rgba(255,181,71,.08);border:1px solid rgba(255,181,71,.15);color:var(--amber);margin:3px 2px;letter-spacing:1px}
+
+/* History */
+.history-card{background:var(--bg2);border:1px solid var(--border);padding:18px}
+.history-title{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--text3);text-transform:uppercase;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.clear-btn{background:transparent;border:1px solid var(--border);color:var(--text3);font-family:var(--mono);font-size:8px;padding:3px 8px;cursor:pointer;letter-spacing:1px;transition:all .2s}
+.clear-btn:hover{border-color:var(--red);color:var(--red)}
+.h-item{display:flex;align-items:center;gap:8px;padding:6px 8px;cursor:pointer;transition:background .2s;border:1px solid transparent;margin-bottom:4px}
+.h-item:hover{background:rgba(110,140,255,.05);border-color:var(--border)}
+.h-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.h-url{font-family:var(--mono);font-size:9px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.h-score{font-family:var(--mono);font-size:10px;font-weight:700;flex-shrink:0}
+.h-time{font-family:var(--mono);font-size:8px;color:var(--text3);flex-shrink:0}
+.h-mode{font-family:var(--mono);font-size:7px;flex-shrink:0;padding:1px 5px;border-radius:2px}
+.h-empty{font-family:var(--mono);font-size:10px;color:var(--text3);text-align:center;padding:16px;letter-spacing:1px}
+
+/* Redirect chain */
+.redir-hop{display:flex;align-items:center;gap:8px;padding:5px 0;font-family:var(--mono);font-size:10px;border-bottom:1px solid rgba(255,255,255,.03)}
+.redir-status{font-size:8px;padding:1px 6px;border-radius:2px}
+.rs-3xx{background:rgba(255,181,71,.1);color:var(--amber)}
+.rs-2xx{background:rgba(0,229,160,.1);color:var(--green)}
+
+/* WHOIS */
+.whois-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:10px}
+.wk{font-family:var(--mono);color:var(--text3);font-size:9px}
+.wv{font-family:var(--mono);color:var(--text);font-size:9px;text-align:right;max-width:55%;word-break:break-all}
+
+/* Section boxes */
+.sec-box{background:var(--bg2);border:1px solid var(--border);padding:20px;margin-bottom:16px}
+.sec-box-title{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--text3);text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.sec-box-title span{font-size:12px}
+
+/* Fullscreen screenshot overlay */
+.ss-overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:999;display:none;align-items:center;justify-content:center;cursor:zoom-out}
+.ss-overlay.show{display:flex}
+.ss-overlay img{max-width:90vw;max-height:90vh;object-fit:contain;border:1px solid var(--border)}
+
+@media(max-width:900px){
+  .p1-wrap,.p2-wrap{padding:0 20px 80px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .cards{grid-template-columns:1fr}
+  .results.show{grid-template-columns:1fr}
+  .results-side{width:100%}
+  .dyn-grid{grid-template-columns:1fr}
+  .prog-stages{grid-template-columns:1fr}
+  .vb-meter{width:160px}
+}
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="grid"></div>
+<div class="scan-beam"></div>
+
+<div id="scene">
+
+<!-- ════════════════════ PAGE 1 — LANDING ════════════════════ -->
+<div class="page active" id="page1">
+<div class="p1-wrap">
+
+  <nav class="nav">
+    <div class="nav-logo">⬡ PhishGuard</div>
+    <div class="nav-badge">Final Year Project · v3.0</div>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-eyebrow"><div class="dot"></div>Hybrid URL Threat Intelligence System</div>
+    <h1 class="hero-title">
+      <span class="t-grad">PHISH</span><br>
+      <span class="t-white">GUARD</span>
+    </h1>
+    <div class="hero-sub">Static · Dynamic · Hybrid Analysis</div>
+    <p class="hero-desc">Real-time phishing detection combining rule-based static analysis with live browser sandbox simulation. Three scan modes. Zero assumptions.</p>
+
+    <div class="mode-pills" id="landing-mode-pills">
+      <button class="mode-pill active" data-mode="hybrid" onclick="selectLandingMode('hybrid',this)">Hybrid</button>
+      <button class="mode-pill" data-mode="static" onclick="selectLandingMode('static',this)">Static</button>
+      <button class="mode-pill" data-mode="dynamic" onclick="selectLandingMode('dynamic',this)">Dynamic</button>
+    </div>
+
+    <div class="cta-row">
+      <button class="btn-primary" onclick="goScan()">Launch Scanner →</button>
+      <button class="btn-sec" onclick="scrollFeatures()">↓ How it works</button>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span class="stat-v">18+</span><span class="stat-l">Detection Checks</span></div>
+    <div class="stat"><span class="stat-v">3</span><span class="stat-l">Blacklist Feeds</span></div>
+    <div class="stat"><span class="stat-v">Live</span><span class="stat-l">Browser Sandbox</span></div>
+    <div class="stat"><span class="stat-v">≤30s</span><span class="stat-l">Full Hybrid Scan</span></div>
+  </div>
+
+  <div id="features-anchor">
+    <div class="section-label">// Detection Engine</div>
+    <h2 class="section-h">Three Scan Modes</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">Static Analysis</div>
+        <div class="card-desc">Rule-based checks without visiting the URL. DNS resolution, WHOIS age, SSL certificate, blacklist lookups, URL syntax heuristics, redirect chain analysis.</div>
+        <span class="card-badge badge-static">Static</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🧪</div>
+        <div class="card-title">Dynamic Sandbox</div>
+        <div class="card-desc">Headless Chromium visits the real page. Detects brand impersonation, credential harvesting forms, JS obfuscation, urgency language, popup behaviour, and exfiltration requests.</div>
+        <span class="card-badge badge-dynamic">Dynamic</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔬</div>
+        <div class="card-title">Hybrid Mode</div>
+        <div class="card-desc">Both engines run in parallel. Static checks complete first for instant signals, then dynamic results merge in. Risk score fuses all evidence for maximum accuracy.</div>
+        <span class="card-badge badge-hybrid">Hybrid</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🌐</div>
+        <div class="card-title">Live Blacklists</div>
+        <div class="card-desc">Real-time lookups against OpenPhish feed, URLhaus/abuse.ch API, and Google Safe Browsing (with API key). All three checked simultaneously.</div>
+        <span class="card-badge badge-static">Static</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔏</div>
+        <div class="card-title">WHOIS + SSL Intel</div>
+        <div class="card-desc">Domain age, registrar reputation, WHOIS privacy shields, SSL issuer, expiry countdown, self-signed detection, TLS version, and SAN verification.</div>
+        <span class="card-badge badge-static">Static</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">📸</div>
+        <div class="card-title">Live Screenshot</div>
+        <div class="card-desc">Full-page screenshot captured by the sandbox browser at scan time. Instantly reveals spoofed bank pages, fake login forms, or misleading content.</div>
+        <span class="card-badge badge-dynamic">Dynamic</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center">
+    <button class="btn-primary" onclick="goScan()">Open Scanner →</button>
+  </div>
+
+</div>
+</div>
+
+<!-- ════════════════════ PAGE 2 — SCANNER ════════════════════ -->
+<div class="page hidden-down" id="page2">
+<div class="p2-wrap">
+
+  <div class="p2-nav">
+    <div class="p2-logo">⬡ PHISHGUARD</div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div class="be-status" id="be-status"><div class="be-dot" id="be-dot"></div><span class="be-lbl" id="be-lbl">CHECKING</span></div>
+      <button class="back-btn" onclick="goPage1()">← Guide</button>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-zone">
+    <div class="input-zone-top">
+      <label class="input-label">// Target URL</label>
+      <div class="mode-tabs" id="mode-tabs">
+        <button class="mode-tab active-hybrid active" data-mode="hybrid" onclick="setMode('hybrid',this)">Hybrid</button>
+        <button class="mode-tab" data-mode="static" onclick="setMode('static',this)">Static</button>
+        <button class="mode-tab" data-mode="dynamic" onclick="setMode('dynamic',this)">Dynamic</button>
+      </div>
+    </div>
+    <div class="url-row">
+      <div class="url-pfx">TARGET://</div>
+      <input id="url-input" type="text" placeholder="paste any URL — e.g. https://suspicious-site.com/login" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')doScan()">
+      <button class="scan-btn" id="scan-btn" onclick="doScan()">
+        <span class="btn-txt">SCAN</span>
+        <div class="btn-spinner"></div>
+      </button>
+    </div>
+    <div class="err-msg" id="err-msg"></div>
+  </div>
+
+  <!-- Progress Panel -->
+  <div class="progress-panel" id="progress-panel">
+    <div id="mode-indicator-wrap"></div>
+    <div class="prog-lbl">Scan Progress</div>
+    <div class="prog-stages" id="prog-stages"></div>
+    <div class="prog-bar-wrap"><div class="prog-bar" id="prog-bar" style="width:0%"></div></div>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results" style="grid-template-columns:1fr 300px">
+
+    <!-- MAIN -->
+    <div class="results-main">
+
+      <!-- Verdict banner -->
+      <div class="verdict-banner" id="verdict-banner">
+        <div class="vb-corner" id="vb-corner"></div>
+        <div class="vb-score" id="vb-score">—</div>
+        <div class="vb-info">
+          <div class="vb-verdict" id="vb-verdict">AWAITING SCAN</div>
+          <div class="vb-scan-mode" id="vb-scan-mode"></div>
+          <div class="vb-meter"><div class="vb-meter-fill" id="vb-meter-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tab-row">
+        <button class="tab active" onclick="switchTab('threats',this)">Threat Breakdown</button>
+        <button class="tab" onclick="switchTab('dynamic',this)">Dynamic Results</button>
+        <button class="tab" onclick="switchTab('network',this)">DNS &amp; SSL</button>
+        <button class="tab" onclick="switchTab('whois',this)">WHOIS</button>
+        <button class="tab" onclick="switchTab('redirects',this)">Redirects</button>
+      </div>
+
+      <!-- Tab: Threats -->
+      <div class="tab-pane active" id="tab-threats">
+        <div id="threats-static-label" class="threat-section-label">⚡ Static Analysis Checks</div>
+        <div id="threats-static"></div>
+        <div id="threats-dynamic-label" class="threat-section-label">🧪 Dynamic Analysis Checks</div>
+        <div id="threats-dynamic"></div>
+      </div>
+
+      <!-- Tab: Dynamic -->
+      <div class="tab-pane" id="tab-dynamic">
+        <div class="dynamic-section">
+          <div class="dynamic-header">
+            <div class="dynamic-title">Browser Sandbox Results</div>
+            <span class="dynamic-badge" id="dyn-status-badge">Not Run</span>
+          </div>
+          <!-- Screenshot -->
+          <div class="screenshot-frame" id="ss-frame" onclick="openSS()">
+            <div class="ss-placeholder" id="ss-placeholder">
+              <div class="ss-spinner" id="ss-spinner"></div>
+              <span id="ss-msg">Dynamic scan not run</span>
+            </div>
+            <img id="ss-img" alt="Page screenshot">
+          </div>
+          <!-- Risk signals -->
+          <div class="sec-box-title"><span>⚠</span> Risk Signals Detected</div>
+          <div id="risk-signals-list" class="risk-signals-list"></div>
+          <!-- Dynamic grid info -->
+          <div class="dyn-grid" id="dyn-grid"></div>
+          <!-- Urgency phrases -->
+          <div id="urgency-section" style="margin-top:14px;display:none">
+            <div class="sec-box-title"><span>🔊</span> Urgency Language Detected</div>
+            <div id="urgency-list"></div>
+          </div>
+          <!-- Network requests -->
+          <div id="net-reqs-section" style="margin-top:14px;display:none">
+            <div class="sec-box-title"><span>🌐</span> Suspicious Network Requests</div>
+            <div id="net-reqs-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: DNS & SSL -->
+      <div class="tab-pane" id="tab-network">
+        <div class="sec-box">
+          <div class="sec-box-title"><span>🌍</span> DNS Records</div>
+          <div id="dns-rows"></div>
+        </div>
+        <div class="sec-box">
+          <div class="sec-box-title"><span>🔒</span> SSL / TLS Certificate</div>
+          <div id="ssl-rows"></div>
+        </div>
+        <div class="sec-box">
+          <div class="sec-box-title"><span>🚫</span> Blacklist &amp; Platform Checks</div>
+          <div id="bl-rows"></div>
+        </div>
+        <div class="sec-box">
+          <div class="sec-box-title"><span>📋</span> Syntax Flags</div>
+          <div id="syntax-flags"></div>
+        </div>
+      </div>
+
+      <!-- Tab: WHOIS -->
+      <div class="tab-pane" id="tab-whois">
+        <div class="sec-box">
+          <div class="sec-box-title"><span>📄</span> WHOIS Registration Data</div>
+          <div id="whois-rows"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Redirects -->
+      <div class="tab-pane" id="tab-redirects">
+        <div class="sec-box">
+          <div class="sec-box-title"><span>🔀</span> Redirect Chain</div>
+          <div id="redir-rows"></div>
+        </div>
+      </div>
+
+    </div><!-- /main -->
+
+    <!-- SIDEBAR -->
+    <div class="results-side">
+      <div class="side-card">
+        <div class="sc-title">URL Intelligence</div>
+        <div class="info-row"><span class="ik">DOMAIN</span><span class="iv" id="i-domain">—</span></div>
+        <div class="info-row"><span class="ik">PROTOCOL</span><span class="iv" id="i-proto">—</span></div>
+        <div class="info-row"><span class="ik">TLD</span><span class="iv" id="i-tld">—</span></div>
+        <div class="info-row"><span class="ik">URL LENGTH</span><span class="iv" id="i-len">—</span></div>
+        <div class="info-row"><span class="ik">SUBDOMAIN</span><span class="iv" id="i-sub">—</span></div>
+        <div class="info-row"><span class="ik">PATH DEPTH</span><span class="iv" id="i-path">—</span></div>
+        <div class="info-row"><span class="ik">IP BASED</span><span class="iv" id="i-ip">—</span></div>
+        <div class="info-row"><span class="ik">SCAN MODE</span><span class="iv" id="i-mode">—</span></div>
+        <div class="info-row"><span class="ik">SCANNED AT</span><span class="iv" id="i-time">—</span></div>
+      </div>
+      <div class="history-card">
+        <div class="history-title">
+          Scan History
+          <button class="clear-btn" onclick="clearHistory()">Clear</button>
+        </div>
+        <div id="history-list"></div>
+      </div>
+    </div>
+
+  </div><!-- /results -->
+
+</div>
+</div><!-- /page2 -->
+
+</div><!-- /scene -->
+
+<!-- Screenshot overlay -->
+<div class="ss-overlay" id="ss-overlay" onclick="closeSS()">
+  <img id="ss-overlay-img" src="" alt="Screenshot">
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────────────
+const BACKEND = 'http://127.0.0.1:8000';
+let currentMode = 'hybrid';
+let history_data = JSON.parse(localStorage.getItem('phishguard_history') || '[]');
+let lastResult = null;
+let lastSSB64 = null;
+
+// ─────────────────────────────────────────────────────────────────
+// PAGE NAVIGATION
+// ─────────────────────────────────────────────────────────────────
+function goScan() {
+  document.getElementById('page1').classList.replace('active','hidden-up');
+  const p2 = document.getElementById('page2');
+  p2.classList.replace('hidden-down','active');
+  checkBackend();
+  renderHistory();
+}
+function goPage1() {
+  document.getElementById('page2').classList.replace('active','hidden-down');
+  document.getElementById('page1').classList.replace('hidden-up','active');
+}
+function scrollFeatures() {
+  document.getElementById('features-anchor').scrollIntoView({behavior:'smooth'});
+}
+
+// ─────────────────────────────────────────────────────────────────
+// BACKEND CHECK
+// ─────────────────────────────────────────────────────────────────
+async function checkBackend() {
+  const dot = document.getElementById('be-dot');
+  const lbl = document.getElementById('be-lbl');
+  const wrap = document.getElementById('be-status');
+  try {
+    const r = await fetch(BACKEND + '/health', {signal: AbortSignal.timeout(4000)});
+    const d = await r.json();
+    dot.className = 'be-dot online';
+    lbl.textContent = 'BACKEND ONLINE';
+    wrap.className = 'be-status online';
+    if (d.playwright) lbl.textContent = 'FULL HYBRID READY';
+  } catch {
+    dot.className = 'be-dot offline';
+    lbl.textContent = 'BACKEND OFFLINE';
+    wrap.className = 'be-status offline';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MODE
+// ─────────────────────────────────────────────────────────────────
+function selectLandingMode(mode, el) {
+  currentMode = mode;
+  document.querySelectorAll('#landing-mode-pills .mode-pill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+function setMode(mode, el) {
+  currentMode = mode;
+  document.querySelectorAll('#mode-tabs .mode-tab').forEach(b => {
+    b.classList.remove('active','active-static','active-dynamic','active-hybrid');
+  });
+  el.classList.add('active', `active-${mode}`);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SCAN STAGES
+// ─────────────────────────────────────────────────────────────────
+function getStages(mode) {
+  const s = [
+    {id:'dns',   label:'DNS Lookup',           icon:'🌐'},
+    {id:'ssl',   label:'SSL Certificate',       icon:'🔒'},
+    {id:'whois', label:'WHOIS Lookup',          icon:'📄'},
+    {id:'bl',    label:'Blacklist Checks',      icon:'🚫'},
+    {id:'syn',   label:'Syntax Analysis',       icon:'⚡'},
+    {id:'redir', label:'Redirect Chain',        icon:'🔀'},
+  ];
+  if (mode !== 'static') {
+    s.push({id:'dyn', label:'Browser Sandbox', icon:'🧪'});
+    s.push({id:'ss',  label:'Capturing Screenshot', icon:'📸'});
+  }
+  return s;
+}
+
+function showProgress(mode) {
+  const panel = document.getElementById('progress-panel');
+  const stagesEl = document.getElementById('prog-stages');
+  const indEl = document.getElementById('mode-indicator-wrap');
+  panel.classList.add('show');
+  document.getElementById('prog-bar').style.width = '0%';
+
+  const modeClass = {hybrid:'mi-hybrid',static:'mi-static',dynamic:'mi-dynamic'}[mode];
+  const modeLabel = {hybrid:'Hybrid Scan',static:'Static Scan',dynamic:'Dynamic Scan'}[mode];
+  indEl.innerHTML = `<div class="mode-indicator ${modeClass}">● ${modeLabel}</div>`;
+
+  const stages = getStages(mode);
+  stagesEl.innerHTML = stages.map(s => `
+    <div class="prog-stage" id="ps-${s.id}">
+      <span class="ps-icon">○</span> ${s.label}
+    </div>`).join('');
+  return stages;
+}
+
+function setStage(id, state) { // state: active|done|fail
+  const el = document.getElementById('ps-'+id);
+  if (!el) return;
+  el.className = 'prog-stage ' + state;
+  const icon = state==='done'?'✓':state==='fail'?'✗':'›';
+  el.querySelector('.ps-icon').textContent = icon;
+}
+
+function setProgress(pct) {
+  document.getElementById('prog-bar').style.width = pct + '%';
+}
+
+function hideProgress() {
+  document.getElementById('progress-panel').classList.remove('show');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// MAIN SCAN
+// ─────────────────────────────────────────────────────────────────
+async function doScan() {
+  const input = document.getElementById('url-input').value.trim();
+  const btn = document.getElementById('scan-btn');
+  const errEl = document.getElementById('err-msg');
+  if (!input) { showErr('// Enter a URL to scan.'); return; }
+  errEl.style.display = 'none';
+
+  btn.disabled = true;
+  btn.classList.add('loading');
+  document.getElementById('results').classList.remove('show');
+
+  const stages = showProgress(currentMode);
+
+  // Animate static stages
+  const staticStages = ['dns','ssl','whois','bl','syn','redir'];
+  let pct = 0;
+  for (let i=0; i<staticStages.length; i++) {
+    setStage(staticStages[i],'active');
+    await sleep(300);
+    setStage(staticStages[i],'done');
+    pct = Math.round(((i+1)/stages.length)*60);
+    setProgress(pct);
+  }
+  if (currentMode !== 'static') {
+    setStage('dyn','active');
+    setProgress(65);
+    setStage('ss','active');
+  }
+
+  try {
+    const resp = await fetch(BACKEND + '/scan', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({url: input, scan_mode: currentMode}),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+    const data = await resp.json();
+
+    if (currentMode !== 'static') {
+      setStage('dyn', data.dynamic?.visited ? 'done' : 'fail');
+      setStage('ss', data.dynamic?.screenshot_b64 ? 'done' : 'fail');
+    }
+    setProgress(100);
+    await sleep(400);
+    hideProgress();
+    renderResults(data, input);
+    saveHistory(input, data.riskScore, data.verdict, currentMode);
+  } catch(err) {
+    hideProgress();
+    showErr('// Scan failed: ' + err.message + '. Check backend is running on port 8000.');
+  }
+
+  btn.disabled = false;
+  btn.classList.remove('loading');
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function showErr(msg){ const e=document.getElementById('err-msg'); e.textContent=msg; e.style.display='block'; }
+
+// ─────────────────────────────────────────────────────────────────
+// RENDER RESULTS
+// ─────────────────────────────────────────────────────────────────
+function scoreColorClass(s){ return s<=15?'safe':s<=35?'low':s<=55?'suspicious':s<=75?'high':'critical'; }
+
+function renderResults(r, rawUrl) {
+  lastResult = r;
+  const score = r.riskScore;
+  const cls = scoreColorClass(score);
+  const mode = r.scanMode || currentMode;
+
+  // Verdict banner
+  const vb = document.getElementById('verdict-banner');
+  vb.className = 'verdict-banner vb-'+cls;
+  document.getElementById('vb-score').className = 'vb-score c-'+cls;
+  document.getElementById('vb-score').textContent = score;
+  document.getElementById('vb-verdict').className = 'vb-verdict c-'+cls;
+  document.getElementById('vb-verdict').textContent = r.verdict || 'UNKNOWN';
+  document.getElementById('vb-scan-mode').textContent = `${mode.toUpperCase()} SCAN · ${new Date(r.scannedAt).toLocaleTimeString()}`;
+  const fill = document.getElementById('vb-meter-fill');
+  fill.className = 'vb-meter-fill m-'+cls;
+  setTimeout(() => fill.style.width = score+'%', 100);
+  document.getElementById('vb-corner').style.background = getComputedStyle(document.documentElement).getPropertyValue('--'+cls==='safe'?'green':cls==='low'?'blue':cls==='suspicious'?'amber':cls==='high'?'#ff8c00':'red');
+
+  // URL Info sidebar
+  const ui = r.urlInfo || {};
+  setText('i-domain', ui.hostname || '—');
+  setText('i-proto', (ui.protocol||'?').toUpperCase());
+  setText('i-tld', '.' + (ui.tld||'?'));
+  setText('i-len', (ui.urlLength||rawUrl.length) + ' chars');
+  setText('i-sub', ui.subdomain||'none');
+  setText('i-path', (ui.pathDepth??'?') + ' level(s)');
+  const ipEl = document.getElementById('i-ip');
+  ipEl.textContent = ui.isIpBased ? 'Yes ⚠' : 'No';
+  ipEl.style.color = ui.isIpBased ? 'var(--red)' : 'var(--green)';
+  setText('i-mode', mode.toUpperCase());
+  setText('i-time', r.scannedAt ? new Date(r.scannedAt).toLocaleTimeString() : '—');
+
+  // Threat breakdown tabs
+  renderThreats(r.threats || []);
+
+  // Dynamic tab
+  renderDynamic(r.dynamic);
+
+  // DNS
+  renderDNS(r.dns || {});
+
+  // SSL
+  renderSSL(r.ssl || {});
+
+  // Blacklists
+  const allBl = [...(r.blacklists||[]), ...(r.platformBlocks||[]).map(p=>({
+    source: p.platform, listed: p.blocked, detail: p.detail||'', type: p.type||'static'
+  }))];
+  // Deduplicate
+  const seenBl = new Set();
+  const uniqBl = allBl.filter(b => {
+    const k = b.source;
+    if (seenBl.has(k)) return false;
+    seenBl.add(k);
+    return true;
+  });
+  setHTML('bl-rows', uniqBl.map(b => `<div class="bl-row">
+    <span class="bl-icon" style="color:${b.listed?'var(--red)':'var(--green)'}">${b.listed?'✗':'✓'}</span>
+    <span class="bl-name">${b.source}</span>
+    <span class="bl-badge ${b.listed?'bl-listed':'bl-clear'}">${b.listed?'LISTED':'CLEAR'}</span>
+  </div>`).join(''));
+
+  // Syntax flags
+  const flags = r.syntax?.flags || [];
+  if (flags.length) {
+    setHTML('syntax-flags', flags.map(f=>`<span class="flag-chip">⚠ ${f}</span>`).join(''));
+  } else {
+    setHTML('syntax-flags','<span style="font-family:var(--mono);font-size:11px;color:var(--green)">✓ No syntax anomalies detected</span>');
+  }
+
+  // WHOIS
+  const w = r.whois || {};
+  setHTML('whois-rows', `
+    <div class="whois-row"><span class="wk">REGISTRAR</span><span class="wv">${w.registrar||'—'}</span></div>
+    <div class="whois-row"><span class="wk">DOMAIN AGE</span><span class="wv" style="color:${w.age_days<30&&w.age_days!=null?'var(--red)':w.age_days<180&&w.age_days!=null?'var(--amber)':'inherit'}">${w.age_string||'—'}</span></div>
+    <div class="whois-row"><span class="wk">CREATED</span><span class="wv">${w.creation_date||'—'}</span></div>
+    <div class="whois-row"><span class="wk">EXPIRES</span><span class="wv">${w.expiration_date||'—'}</span></div>
+    <div class="whois-row"><span class="wk">UPDATED</span><span class="wv">${w.updated_date||'—'}</span></div>
+    <div class="whois-row"><span class="wk">COUNTRY</span><span class="wv">${w.country||'—'}</span></div>
+    <div class="whois-row"><span class="wk">PRIVACY</span><span class="wv" style="color:${w.privacy_protected?'var(--amber)':'inherit'}">${w.privacy_protected?'Protected ⚠':'Visible'}</span></div>
+    <div class="whois-row"><span class="wk">NAMESERVERS</span><span class="wv">${(w.name_servers||[]).slice(0,2).join(', ')||'—'}</span></div>
+    <div class="whois-row"><span class="wk">DNSSEC</span><span class="wv">${w.dnssec||'—'}</span></div>
+  `);
+
+  // Redirects
+  const rd = r.redirects || {};
+  if (rd.hops > 0) {
+    setHTML('redir-rows', `<div style="font-family:var(--mono);font-size:10px;color:${rd.suspicious?'var(--amber)':'var(--text2)'};margin-bottom:10px">${rd.hops} redirect(s) ${rd.suspicious?'⚠ Suspicious':''} ${rd.cross_domain?'· Cross-domain':''}</div>`
+      + (rd.chain||[]).map((c,i)=>`<div class="redir-hop">
+          <span class="redir-status ${c.status>=300&&c.status<400?'rs-3xx':'rs-2xx'}">${c.status}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.url}</span>
+        </div>`).join(''));
+  } else {
+    setHTML('redir-rows','<span style="font-family:var(--mono);font-size:11px;color:var(--green)">✓ No redirects detected</span>');
+  }
+
+  document.getElementById('results').classList.add('show');
+  document.getElementById('page2').scrollTo({top:0,behavior:'smooth'});
+  renderHistory();
+}
+
+function renderThreats(threats) {
+  const staticT = threats.filter(t=>t.type==='static'||!t.type);
+  const dynamicT = threats.filter(t=>t.type==='dynamic');
+  const hasDyn = dynamicT.length > 0;
+
+  const renderRow = (t) => {
+    const col = t.status==='PASS'?'var(--green)':t.status==='WARN'?'var(--amber)':'var(--red)';
+    const sc = t.status==='PASS'?'s-pass':t.status==='WARN'?'s-warn':'s-fail';
+    const ic = t.status==='PASS'?'✓':t.status==='WARN'?'⚠':'✗';
+    const typeBadge = t.type==='dynamic'?'<span class="t-type-badge tb-dynamic">LIVE</span>':'<span class="t-type-badge tb-static">RULE</span>';
+    return `<div class="t-row">
+      <span class="t-icon" style="color:${col}">${ic}</span>
+      <div class="t-info">
+        <div class="t-name">${t.name}</div>
+        <div class="t-bar-bg"><div class="t-bar" style="background:${col}" data-w="${t.score}"></div></div>
+        <div class="t-detail">${t.detail||''}</div>
+      </div>
+      <span class="t-pct">${t.score}</span>
+      ${typeBadge}
+      <span class="t-status ${sc}">${t.status}</span>
+    </div>`;
+  };
+
+  setHTML('threats-static', staticT.map(renderRow).join(''));
+  setHTML('threats-dynamic', hasDyn ? dynamicT.map(renderRow).join('') : '<div style="font-family:var(--mono);font-size:10px;color:var(--text3);padding:10px;letter-spacing:1px">No dynamic checks (static-only scan)</div>');
+
+  document.getElementById('threats-dynamic-label').style.display = hasDyn ? '' : '';
+  setTimeout(()=>document.querySelectorAll('.t-bar').forEach(b=>b.style.width=b.dataset.w+'%'),100);
+}
+
+function renderDynamic(d) {
+  if (!d) {
+    setHTML('risk-signals-list','<div class="no-signals">Dynamic scan was not run in this mode</div>');
+    document.getElementById('dyn-status-badge').textContent = 'Not Run';
+    document.getElementById('ss-msg').textContent = 'Dynamic scan not run';
+    return;
+  }
+  if (d.error) {
+    document.getElementById('dyn-status-badge').textContent = 'Error';
+    document.getElementById('ss-msg').textContent = 'Error: ' + d.error;
+    setHTML('risk-signals-list','<div class="no-signals" style="color:var(--amber)">'+d.error+'</div>');
+    return;
+  }
+  if (!d.visited) {
+    setHTML('risk-signals-list','<div class="no-signals">Page was not visited</div>');
+    return;
+  }
+
+  document.getElementById('dyn-status-badge').textContent = 'Completed';
+
+  // Screenshot
+  if (d.screenshot_b64) {
+    lastSSB64 = 'data:image/jpeg;base64,' + d.screenshot_b64;
+    const img = document.getElementById('ss-img');
+    img.src = lastSSB64;
+    img.style.display = 'block';
+    document.getElementById('ss-placeholder').style.display = 'none';
+  }
+
+  // Risk signals
+  const signals = d.risk_signals || [];
+  if (signals.length) {
+    setHTML('risk-signals-list', signals.map(s=>`<div class="risk-signal"><span class="rs-icon">⚠</span>${s}</div>`).join(''));
+  } else {
+    setHTML('risk-signals-list','<div class="no-signals">✓ No risk signals detected by sandbox</div>');
+  }
+
+  // Dynamic grid
+  const items = [
+    {l:'Page Title', v: d.page_title||'—'},
+    {l:'Final URL', v: d.final_url?.substring(0,40)+'...'||'—'},
+    {l:'Redirected', v: d.redirected?'Yes ⚠':'No', c: d.redirected?'var(--amber)':'var(--green)'},
+    {l:'Load Time', v: d.load_time_ms ? d.load_time_ms+'ms' : '—'},
+    {l:'Password Field', v: d.has_password_field?'Found ⚠':'None', c: d.has_password_field?'var(--red)':'var(--green)'},
+    {l:'Login Form', v: d.has_login_form?`${d.form_count} form(s) ⚠`:'None', c: d.has_login_form?'var(--amber)':'var(--green)'},
+    {l:'Popups', v: d.popups_triggered?'Triggered ⚠':'None', c: d.popups_triggered?'var(--red)':'var(--green)'},
+    {l:'JS Obfuscation', v: d.js_obfuscation_detected?'Detected ⚠':'None', c: d.js_obfuscation_detected?'var(--red)':'var(--green)'},
+    {l:'iframes', v: d.iframes?.length ? d.iframes.length+' found' : 'None', c: d.iframes?.length?'var(--amber)':'inherit'},
+    {l:'Ext. Scripts', v: d.external_scripts?.length||0},
+    {l:'Cookies Set', v: d.cookies_set?.length||0},
+    {l:'DOM Size', v: d.dom_size||'—'},
+  ];
+  setHTML('dyn-grid', items.map(it=>`<div class="dyn-item">
+    <span class="dyn-label">${it.l}</span>
+    <span class="dyn-val" style="color:${it.c||'inherit'}">${it.v}</span>
+  </div>`).join(''));
+
+  // Urgency
+  const urg = d.urgency_language || [];
+  if (urg.length) {
+    document.getElementById('urgency-section').style.display = '';
+    setHTML('urgency-list', urg.map(p=>`<span class="flag-chip">${p}</span>`).join(''));
+  }
+
+  // Suspicious requests
+  const sreqs = d.suspicious_requests || [];
+  if (sreqs.length) {
+    document.getElementById('net-reqs-section').style.display = '';
+    setHTML('net-reqs-list', sreqs.map(u=>`<div style="font-family:var(--mono);font-size:9px;color:var(--red);padding:4px 8px;background:rgba(255,77,109,.05);margin-bottom:3px;word-break:break-all">${u}</div>`).join(''));
+  }
+
+  // Brand impersonation
+  if (d.brand_impersonation?.length) {
+    // Already surfaced in risk signals
+  }
+}
+
+function renderDNS(dns) {
+  let html = '';
+  (dns.a_records||[]).forEach(ip => html += `<div class="dns-entry"><span class="dns-type">A</span>${ip}</div>`);
+  (dns.mx_records||[]).forEach(mx => html += `<div class="dns-entry"><span class="dns-type">MX</span>${mx}</div>`);
+  (dns.ns_records||[]).forEach(ns => html += `<div class="dns-entry"><span class="dns-type">NS</span>${ns}</div>`);
+  const spf = dns.spf_found ? '<div class="dns-entry"><span class="dns-type" style="background:rgba(0,229,160,.15);color:var(--green)">SPF</span>Record found ✓</div>' : '<div class="dns-entry"><span class="dns-type" style="background:rgba(255,77,109,.1);color:var(--red)">SPF</span>Missing ⚠</div>';
+  const dmarc = dns.dmarc_found ? '<div class="dns-entry"><span class="dns-type" style="background:rgba(0,229,160,.15);color:var(--green)">DMARC</span>Record found ✓</div>' : '';
+  html += spf + dmarc;
+  if (!html) html = `<div class="dns-entry" style="color:var(--text3)">${dns.error||'No DNS records found'}</div>`;
+  setHTML('dns-rows', html);
+}
+
+function renderSSL(ssl) {
+  const sslColor = ssl.valid ? 'var(--green)' : ssl.present ? 'var(--amber)' : 'var(--red)';
+  const banner = `<div class="ssl-valid-banner" style="background:${ssl.valid?'rgba(0,229,160,.06)':'rgba(255,77,109,.06)'};border:1px solid ${ssl.valid?'rgba(0,229,160,.2)':'rgba(255,77,109,.2)'};color:${sslColor}">
+    ${ssl.valid?'🔒 VALID SSL/TLS CERTIFICATE':'⚠ ' + (ssl.status||'SSL MISSING')}
+  </div>`;
+  const rows = [
+    ['ISSUER', ssl.issuer||'—'],
+    ['SUBJECT', ssl.subject||'—'],
+    ['EXPIRES', ssl.not_after||'—'],
+    ['DAYS LEFT', ssl.days_until_expiry!=null ? ssl.days_until_expiry+' days' : '—'],
+    ['SELF-SIGNED', ssl.self_signed ? 'Yes ⚠' : 'No'],
+    ['TLS VERSION', ssl.version||'—'],
+    ['SERIAL', ssl.serial_number||'—'],
+  ].map(([k,v])=>`<div class="whois-row"><span class="wk">${k}</span><span class="wv">${v}</span></div>`).join('');
+  const sans = ssl.sans?.length ? `<div class="whois-row"><span class="wk">SANs</span><span class="wv" style="font-size:8px">${ssl.sans.slice(0,3).join(', ')}</span></div>` : '';
+  setHTML('ssl-rows', banner + rows + sans);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SCREENSHOT
+// ─────────────────────────────────────────────────────────────────
+function openSS() {
+  if (!lastSSB64) return;
+  document.getElementById('ss-overlay-img').src = lastSSB64;
+  document.getElementById('ss-overlay').classList.add('show');
+}
+function closeSS() {
+  document.getElementById('ss-overlay').classList.remove('show');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// HISTORY
+// ─────────────────────────────────────────────────────────────────
+function saveHistory(url, score, verdict, mode) {
+  history_data.unshift({url, score, verdict, mode: mode||'static', time: Date.now()});
+  if (history_data.length > 10) history_data = history_data.slice(0,10);
+  localStorage.setItem('phishguard_history', JSON.stringify(history_data));
+}
+function clearHistory() {
+  history_data = [];
+  localStorage.removeItem('phishguard_history');
+  renderHistory();
+}
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (!history_data.length) {
+    el.innerHTML = '<div class="h-empty">// No scans yet</div>';
+    return;
+  }
+  el.innerHTML = history_data.map(h => {
+    const cls = scoreColorClass(h.score);
+    const mc = {hybrid:'var(--purple)',static:'var(--blue)',dynamic:'var(--green)'}[h.mode||'static'];
+    const dot_col = {safe:'var(--green)',low:'var(--blue)',suspicious:'var(--amber)',high:'#ff8c00',critical:'var(--red)'}[cls];
+    return `<div class="h-item" onclick="document.getElementById('url-input').value='${h.url.replace(/'/g,"\\'")}';setMode('${h.mode||'static'}',document.querySelector('[data-mode=${h.mode||'static'}]'))">
+      <div class="h-dot" style="background:${dot_col}"></div>
+      <span class="h-url">${h.url}</span>
+      <span class="h-score" style="color:${dot_col}">${h.score}</span>
+      <span class="h-mode" style="background:rgba(255,255,255,.05);color:${mc}">${h.mode||'S'}</span>
+      <span class="h-time">${new Date(h.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────────────
+function setText(id, v) { const e=document.getElementById(id); if(e) e.textContent=v; }
+function setHTML(id, v) { const e=document.getElementById(id); if(e) e.innerHTML=v; }
+
+// Init
+checkBackend();
+renderHistory();
+</script>
+</body>
+</html>
